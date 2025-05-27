@@ -2,12 +2,13 @@
 const RUNWAY_API_URL = 'https://api.dev.runwayml.com/v1/text_to_image';
 const API_KEY = 'key_3f196a35aef9f226e8deef988f936e7109b7ae729b98f02fbec8c9df582551f29a1eb4b41d16cd23940e8f5ea03bb06ae9aecc8145b718c91c2a1127f58d7c6a';
 
-// File upload handling
+// Elements
 const dropArea = document.getElementById('drop-area');
 const fileInput = document.getElementById('file-input');
 const previewContainer = document.getElementById('preview-container');
 const previewImage = document.getElementById('preview-image');
 const removeImageBtn = document.getElementById('remove-image-btn');
+const wardrobeContainer = document.getElementById('wardrobe-container');
 const apiKeyInput = document.getElementById('api-key-input');
 const tryOnBtn = document.getElementById('try-on-btn');
 
