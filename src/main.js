@@ -8,6 +8,11 @@ const fileInput = document.getElementById('file-input');
 const previewContainer = document.getElementById('preview-container');
 const previewImage = document.getElementById('preview-image');
 const removeImageBtn = document.getElementById('remove-image-btn');
+const garmentDropArea = document.getElementById('garment-drop-area');
+const garmentFileInput = document.getElementById('garment-file-input');
+const garmentPreviewContainer = document.getElementById('garment-preview-container');
+const garmentPreviewImage = document.getElementById('garment-preview-image');
+const removeGarmentBtn = document.getElementById('remove-garment-btn');
 const wardrobeContainer = document.getElementById('wardrobe-container');
 const apiKeyInput = document.getElementById('api-key-input');
 const tryOnBtn = document.getElementById('try-on-btn');
@@ -15,34 +20,44 @@ const tryOnBtn = document.getElementById('try-on-btn');
 // Set API key in input
 apiKeyInput.value = API_KEY;
 
-// Prevent default drag behaviors
+// Prevent default drag behaviors for both drop areas
 ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
   dropArea.addEventListener(eventName, preventDefaults, false);
+  garmentDropArea.addEventListener(eventName, preventDefaults, false);
   document.body.addEventListener(eventName, preventDefaults, false);
 });
 
-// Highlight drop zone when item is dragged over it
+// Highlight drop zones when item is dragged over
 ['dragenter', 'dragover'].forEach(eventName => {
   dropArea.addEventListener(eventName, highlight, false);
+  garmentDropArea.addEventListener(eventName, highlightGarment, false);
 });
 
 ['dragleave', 'drop'].forEach(eventName => {
   dropArea.addEventListener(eventName, unhighlight, false);
+  garmentDropArea.addEventListener(eventName, unhighlightGarment, false);
 });
 
-// Handle dropped files
+// Handle dropped files for both areas
 dropArea.addEventListener('drop', handleDrop, false);
+garmentDropArea.addEventListener('drop', handleGarmentDrop, false);
 
-// Handle click on drop area
+// Handle click on drop areas
 dropArea.addEventListener('click', () => {
   fileInput.click();
 });
 
-// Handle file selection
-fileInput.addEventListener('change', handleFiles);
+garmentDropArea.addEventListener('click', () => {
+  garmentFileInput.click();
+});
 
-// Remove image button click
+// Handle file selection for both inputs
+fileInput.addEventListener('change', handleFiles);
+garmentFileInput.addEventListener('change', handleGarmentFiles);
+
+// Remove image buttons click
 removeImageBtn.addEventListener('click', removeImage);
+removeGarmentBtn.addEventListener('click', removeGarmentImage);
 
 // API key input change
 apiKeyInput.addEventListener('input', updateTryOnButton);
@@ -63,11 +78,24 @@ function unhighlight() {
   dropArea.classList.remove('highlight');
 }
 
+function highlightGarment() {
+  garmentDropArea.classList.add('highlight');
+}
+
+function unhighlightGarment() {
+  garmentDropArea.classList.remove('highlight');
+}
+
 function handleDrop(e) {
   const dt = e.dataTransfer;
   const files = dt.files;
-
   handleFiles({ target: { files } });
+}
+
+function handleGarmentDrop(e) {
+  const dt = e.dataTransfer;
+  const files = dt.files;
+  handleGarmentFiles({ target: { files } });
 }
 
 function handleFiles(e) {
@@ -94,6 +122,30 @@ function handleFiles(e) {
   }
 }
 
+function handleGarmentFiles(e) {
+  const files = e.target.files;
+
+  if (files && files.length) {
+    const file = files[0];
+
+    if (!file.type.match('image.*')) {
+      alert('Please select an image file.');
+      return;
+    }
+
+    const reader = new FileReader();
+
+    reader.onload = function(e) {
+      garmentPreviewImage.src = e.target.result;
+      garmentPreviewContainer.style.display = 'block';
+      garmentDropArea.style.display = 'none';
+      updateTryOnButton();
+    };
+
+    reader.readAsDataURL(file);
+  }
+}
+
 function removeImage() {
   previewImage.src = '';
   previewContainer.style.display = 'none';
@@ -102,10 +154,19 @@ function removeImage() {
   updateTryOnButton();
 }
 
+function removeGarmentImage() {
+  garmentPreviewImage.src = '';
+  garmentPreviewContainer.style.display = 'none';
+  garmentDropArea.style.display = 'block';
+  garmentFileInput.value = '';
+  updateTryOnButton();
+}
+
 function updateTryOnButton() {
   const hasImage = previewImage.src !== '';
+  const hasGarment = garmentPreviewImage.src !== '';
   const hasApiKey = apiKeyInput.value.trim() !== '';
-  tryOnBtn.disabled = !(hasImage && hasApiKey);
+  tryOnBtn.disabled = !(hasImage && hasGarment && hasApiKey);
 }
 
 async function handleTryOn() {
@@ -127,6 +188,9 @@ async function handleTryOn() {
         referenceImages: [
           {
             uri: previewImage.src
+          },
+          {
+            uri: garmentPreviewImage.src
           }
         ]
       })

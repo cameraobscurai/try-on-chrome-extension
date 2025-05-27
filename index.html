@@ -30,6 +30,21 @@
     <div class="section">
       <div class="section-header">
         <h2>Step 2:</h2>
+        <p>Upload a picture of the garment</p>
+      </div>
+      <div id="garment-drop-area">
+        <input type="file" id="garment-file-input" accept="image/*">
+        <p>Drag & drop a garment image here<br>or click to select</p>
+      </div>
+      <div id="garment-preview-container" style="display: none;">
+        <img id="garment-preview-image" src="" alt="Garment Preview">
+        <button id="remove-garment-btn" class="delete-btn" aria-label="Remove garment image"></button>
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="section-header">
+        <h2>Step 3:</h2>
         <p>Enter your Runway API Key</p>
       </div>
       <div class="form-group">
