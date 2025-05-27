@@ -1,199 +1,274 @@
-// Global variable to store the original image data
-let lastOriginalImageData = null;
+// Elements
+const dropArea = document.getElementById('drop-area');
+const fileInput = document.getElementById('file-input');
+const previewContainer = document.getElementById('preview-container');
+const previewImage = document.getElementById('preview-image');
+const removeImageBtn = document.getElementById('remove-image-btn');
+const garmentDropArea = document.getElementById('garment-drop-area');
+const garmentFileInput = document.getElementById('garment-file-input');
+const garmentPreviewContainer = document.getElementById('garment-preview-container');
+const garmentPreviewImage = document.getElementById('garment-preview-image');
+const removeGarmentBtn = document.getElementById('remove-garment-btn');
+const tryOnBtn = document.getElementById('try-on-btn');
 
-// Listen for messages from the background script
-chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
-  if (message.action === "processImage") {
-    processImage(message.imageUrl)
-      .then((result) => {
-        sendResponse(result);
-      })
-      .catch((error) => {
-        sendResponse({ success: false, error: error.message });
-      });
-
-    // Return true to indicate we will send a response asynchronously
-    return true;
-  } else if (message.action === "getOriginalImage") {
-    // Return the saved original image data if available
-    if (lastOriginalImageData) {
-      sendResponse({ success: true, originalImageData: lastOriginalImageData });
-    } else {
-      sendResponse({ success: false, error: "No original image available" });
-    }
-    return true;
-  }
+// Prevent default drag behaviors for both drop areas
+['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+  dropArea.addEventListener(eventName, preventDefaults, false);
+  garmentDropArea.addEventListener(eventName, preventDefaults, false);
+  document.body.addEventListener(eventName, preventDefaults, false);
 });
 
-// Process the image
-async function processImage(imageUrl) {
-  try {
-    // Request the image from the background script
-    const response = await new Promise((resolve) => {
-      chrome.runtime.sendMessage(
-        { action: "fetchImage", imageUrl: imageUrl },
-        resolve
-      );
-    });
+// Highlight drop zones when item is dragged over
+['dragenter', 'dragover'].forEach(eventName => {
+  dropArea.addEventListener(eventName, highlight, false);
+  garmentDropArea.addEventListener(eventName, highlightGarment, false);
+});
 
-    if (!response.success) {
-      throw new Error("Failed to fetch image: " + response.error);
-    }
+['dragleave', 'drop'].forEach(eventName => {
+  dropArea.addEventListener(eventName, unhighlight, false);
+  garmentDropArea.addEventListener(eventName, unhighlightGarment, false);
+});
 
-    // Store the original image data
-    lastOriginalImageData = response.imageData;
+// Handle dropped files for both areas
+dropArea.addEventListener('drop', handleDrop, false);
+garmentDropArea.addEventListener('drop', handleGarmentDrop, false);
 
-    // Load image into an Image element
-    const img = await loadImage(response.imageData);
+// Handle click on drop areas
+dropArea.addEventListener('click', () => {
+  fileInput.click();
+});
 
-    // Create a unique ID for the image and add it to the DOM
-    const imageId = "face-detection-image-" + Date.now();
-    img.id = imageId;
-    img.style.display = "none";
-    document.body.appendChild(img);
+garmentDropArea.addEventListener('click', () => {
+  garmentFileInput.click();
+});
 
-    // Inject libraries
-    await injectLibrary(
-      chrome.runtime.getURL("vendor/tf.min.js"),
-      "tensorflow-script"
-    );
-    await injectLibrary(
-      chrome.runtime.getURL("vendor/face-detection.js"),
-      "face-detection-script"
-    );
-    await injectLibrary(
-      chrome.runtime.getURL("lib/face-detector.js"),
-      "face-detector-script"
-    );
+// Handle file selection for both inputs
+fileInput.addEventListener('change', handleFiles);
+garmentFileInput.addEventListener('change', handleGarmentFiles);
 
-    // Wait for libraries to initialize
-    await new Promise((resolve) => setTimeout(resolve, 100));
+// Remove image buttons click
+removeImageBtn.addEventListener('click', removeImage);
+removeGarmentBtn.addEventListener('click', removeGarmentImage);
 
-    // Set up listener for results
-    const result = await new Promise((resolve, reject) => {
-      // Set up window message listener
-      const messageListener = async (event) => {
-        if (event.data && event.data.type === "CANVAS_RESULT") {
-          window.removeEventListener("message", messageListener);
+// Try on button click
+tryOnBtn.addEventListener('click', handleTryOn);
 
-          if (event.data.success) {
-            // resize the image so that it will be less than 3mb 
-            const resizedImageData = await resizeImage(event.data.processedImageData);
-             
-            resolve({
-              success: true,
-              facesFound: event.data.facesFound,
-              replacedCount: event.data.replacedCount,
-              processedImageData: resizedImageData,
-            });
-          } else {
-            reject(new Error(event.data.error));
-          }
-        }
-      };
-
-      window.addEventListener("message", messageListener);
-
-      // Send message to trigger face detection
-      window.postMessage(
-        {
-          type: "CANVAS_PROCESS",
-          imageId: imageId,
-          originalUrl: imageUrl,
-        },
-        "*"
-      );
-
-      // Set timeout to prevent hanging
-      setTimeout(() => {
-        window.removeEventListener("message", messageListener);
-        reject(new Error("Face detection timed out"));
-      }, 30000);
-    });
-
-    // Clean up the image element
-    if (document.getElementById(imageId)) {
-      document.getElementById(imageId).remove();
-    }
-
-    return {
-      success: true,
-      replacedCount: result.replacedCount,
-      processedImageData: result.processedImageData,
-      originalImageData: lastOriginalImageData,
-    };
-  } catch (error) {
-    throw error;
-  }
+function preventDefaults(e) {
+  e.preventDefault();
+  e.stopPropagation();
 }
 
-// Function to inject a library into the page
-function injectLibrary(src, id) {
-  return new Promise((resolve, reject) => {
-    // Check if the script is already in the page
-    if (document.getElementById(id)) {
-      resolve();
+function highlight() {
+  dropArea.classList.add('highlight');
+}
+
+function unhighlight() {
+  dropArea.classList.remove('highlight');
+}
+
+function highlightGarment() {
+  garmentDropArea.classList.add('highlight');
+}
+
+function unhighlightGarment() {
+  garmentDropArea.classList.remove('highlight');
+}
+
+function handleDrop(e) {
+  const dt = e.dataTransfer;
+  const files = dt.files;
+  handleFiles({ target: { files } });
+}
+
+function handleGarmentDrop(e) {
+  const dt = e.dataTransfer;
+  const files = dt.files;
+  handleGarmentFiles({ target: { files } });
+}
+
+function handleFiles(e) {
+  const files = e.target.files;
+
+  if (files && files.length) {
+    const file = files[0];
+
+    if (!file.type.match('image.*')) {
+      alert('Please select an image file.');
       return;
     }
 
-    const script = document.createElement("script");
-    script.id = id;
-    script.src = src;
-    script.onload = resolve;
-    script.onerror = reject;
-    document.head.appendChild(script);
-  });
-}
+    const reader = new FileReader();
 
-// Helper function to load an image from a URL
-function loadImage(url) {
-  return new Promise((resolve, reject) => {
-    const img = new Image();
-    img.onload = () => resolve(img);
-    img.onerror = () => reject(new Error("Failed to load image"));
-    img.crossOrigin = "anonymous"; // Important for canvas operations
-    img.src = url;
-  });
-}
-
-// Resize an image (data URL) to ensure it's below 3MB and max width/height (optional)
-function resizeImage(dataUrl, maxSizeMB = 3, maxWidth = 2048, maxHeight = 2048) {
-  return new Promise((resolve, reject) => {
-    const img = new Image();
-    img.onload = function () {
-      let [width, height] = [img.width, img.height];
-
-      // Calculate new dimensions if needed
-      if (width > maxWidth || height > maxHeight) {
-        const aspect = width / height;
-        if (width > height) {
-          width = maxWidth;
-          height = Math.round(maxWidth / aspect);
-        } else {
-          height = maxHeight;
-          width = Math.round(maxHeight * aspect);
-        }
-      }
-
-      const canvas = document.createElement('canvas');
-      canvas.width = width;
-      canvas.height = height;
-      const ctx = canvas.getContext('2d');
-      ctx.drawImage(img, 0, 0, width, height);
-
-      // Try different quality levels to get under maxSizeMB
-      let quality = 0.92;
-      let resizedDataUrl = canvas.toDataURL('image/jpeg', quality);
-
-      // Reduce quality if needed to get under maxSizeMB
-      while (resizedDataUrl.length / 1024 / 1024 > maxSizeMB && quality > 0.5) {
-        quality -= 0.05;
-        resizedDataUrl = canvas.toDataURL('image/jpeg', quality);
-      }
-
-      resolve(resizedDataUrl);
+    reader.onload = function(e) {
+      previewImage.src = e.target.result;
+      previewContainer.style.display = 'block';
+      dropArea.style.display = 'none';
+      updateTryOnButton();
     };
-    img.onerror = () => reject(new Error("Failed to load image for resizing"));
-    img.src = dataUrl;
+
+    reader.readAsDataURL(file);
+  }
+}
+
+function handleGarmentFiles(e) {
+  const files = e.target.files;
+
+  if (files && files.length) {
+    const file = files[0];
+
+    if (!file.type.match('image.*')) {
+      alert('Please select an image file.');
+      return;
+    }
+
+    const reader = new FileReader();
+
+    reader.onload = function(e) {
+      garmentPreviewImage.src = e.target.result;
+      garmentPreviewContainer.style.display = 'block';
+      garmentDropArea.style.display = 'none';
+      updateTryOnButton();
+    };
+
+    reader.readAsDataURL(file);
+  }
+}
+
+function removeImage() {
+  previewImage.src = '';
+  previewContainer.style.display = 'none';
+  dropArea.style.display = 'block';
+  fileInput.value = '';
+  updateTryOnButton();
+}
+
+function removeGarmentImage() {
+  garmentPreviewImage.src = '';
+  garmentPreviewContainer.style.display = 'none';
+  garmentDropArea.style.display = 'block';
+  garmentFileInput.value = '';
+  updateTryOnButton();
+}
+
+function updateTryOnButton() {
+  const hasImage = previewImage.src !== '';
+  const hasGarment = garmentPreviewImage.src !== '';
+  tryOnBtn.disabled = !(hasImage && hasGarment);
+}
+
+// Helper function to upload image and get URL
+async function uploadImage(dataURL) {
+  return new Promise((resolve, reject) => {
+    chrome.runtime.sendMessage({
+      action: 'uploadImage',
+      dataURL
+    }, response => {
+      if (chrome.runtime.lastError) {
+        reject(new Error(chrome.runtime.lastError.message));
+      } else if (response.success) {
+        resolve(response.url);
+      } else {
+        reject(new Error(response.error));
+      }
+    });
   });
 }
+
+async function handleTryOn() {
+  try {
+    // Validate inputs
+    if (!previewImage.src || !garmentPreviewImage.src) {
+      throw new Error('Please upload both a profile picture and a garment image');
+    }
+
+    // Update button state
+    tryOnBtn.disabled = true;
+    tryOnBtn.innerHTML = '<div class="spinner"></div>';
+
+    // Upload both images first
+    const [profileUrl, garmentUrl] = await Promise.all([
+      uploadImage(previewImage.src),
+      uploadImage(garmentPreviewImage.src)
+    ]);
+
+    // Start generation
+    const generationResponse = await new Promise((resolve, reject) => {
+      chrome.runtime.sendMessage({
+        action: 'generateImage',
+        profileUrl,
+        garmentUrl
+      }, response => {
+        if (chrome.runtime.lastError) {
+          reject(new Error(chrome.runtime.lastError.message));
+        } else if (response.success) {
+          resolve(response);
+        } else {
+          reject(new Error(response.error));
+        }
+      });
+    });
+
+    // Poll for results
+    const result = await pollForCompletion(generationResponse.taskId);
+
+    // Display the result
+    showResult(result.output[0]);
+
+  } catch (error) {
+    console.error('Error:', error);
+    alert('Error generating image: ' + error.message);
+  } finally {
+    tryOnBtn.disabled = false;
+    tryOnBtn.textContent = 'Try On';
+  }
+}
+
+async function pollForCompletion(taskId) {
+  const maxAttempts = 30;
+  const interval = 2000;
+
+  for (let i = 0; i < maxAttempts; i++) {
+    const response = await new Promise((resolve, reject) => {
+      chrome.runtime.sendMessage({
+        action: 'pollTask',
+        taskId
+      }, response => {
+        if (chrome.runtime.lastError) {
+          reject(new Error(chrome.runtime.lastError.message));
+        } else if (response.success) {
+          resolve(response.result);
+        } else {
+          reject(new Error(response.error));
+        }
+      });
+    });
+
+    if (response.status === 'SUCCEEDED') {
+      return response;
+    } else if (response.status === 'FAILED') {
+      throw new Error('Generation failed');
+    }
+
+    await new Promise(resolve => setTimeout(resolve, interval));
+  }
+
+  throw new Error('Timeout waiting for generation');
+}
+
+function showResult(imageUrl) {
+  const resultContainer = document.createElement('div');
+  resultContainer.className = 'result-container';
+  resultContainer.innerHTML = `
+    <div class="result-overlay">
+      <div class="result-content">
+        <img src="${imageUrl}" alt="Generated outfit" class="result-image">
+        <button class="btn" onclick="this.closest('.result-overlay').remove()">Close</button>
+      </div>
+    </div>
+  `;
+
+  document.body.appendChild(resultContainer);
+}
+
+// Initialize button state
+updateTryOnButton();

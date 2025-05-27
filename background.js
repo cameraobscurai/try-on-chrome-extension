@@ -1,5 +1,5 @@
 const RUNWAY_API_URL = 'https://api.dev.runwayml.com/v1';
-const API_KEY = process.env.RUNWAY_API_KEY;
+const API_KEY = 'key_3f196a35aef9f226e8deef988f936e7109b7ae729b98f02fbec8c9df582551f29a1eb4b41d16cd23940e8f5ea03bb06ae9aecc8145b718c91c2a1127f58d7c6a';
 
 // Helper function to convert data URL to Blob
 function dataURLtoBlob(dataURL) {
