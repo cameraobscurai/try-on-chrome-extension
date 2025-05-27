@@ -1,6 +1,5 @@
 // Constants
 const RUNWAY_API_URL = 'https://api.dev.runwayml.com/v1';
-const API_KEY = 'key_3f196a35aef9f226e8deef988f936e7109b7ae729b98f02fbec8c9df582551f29a1eb4b41d16cd23940e8f5ea03bb06ae9aecc8145b718c91c2a1127f58d7c6a';
 
 // Elements
 const dropArea = document.getElementById('drop-area');
@@ -16,9 +15,6 @@ const removeGarmentBtn = document.getElementById('remove-garment-btn');
 const wardrobeContainer = document.getElementById('wardrobe-container');
 const apiKeyInput = document.getElementById('api-key-input');
 const tryOnBtn = document.getElementById('try-on-btn');
-
-// Set API key in input
-apiKeyInput.value = API_KEY;
 
 // Prevent default drag behaviors for both drop areas
 ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
@@ -169,39 +165,21 @@ function updateTryOnButton() {
   tryOnBtn.disabled = !(hasImage && hasGarment && hasApiKey);
 }
 
-// Helper function to convert data URL to Blob
-function dataURLtoBlob(dataURL) {
-  const arr = dataURL.split(',');
-  const mime = arr[0].match(/:(.*?);/)[1];
-  const bstr = atob(arr[1]);
-  let n = bstr.length;
-  const u8arr = new Uint8Array(n);
-  while (n--) {
-    u8arr[n] = bstr.charCodeAt(n);
-  }
-  return new Blob([u8arr], { type: mime });
-}
-
 // Helper function to upload image and get URL
 async function uploadImage(dataURL) {
-  const formData = new FormData();
-  formData.append('file', dataURLtoBlob(dataURL));
-
-  const response = await fetch(`${RUNWAY_API_URL}/upload`, {
-    method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${apiKeyInput.value.trim()}`
-    },
-    body: formData
+  return new Promise((resolve, reject) => {
+    chrome.runtime.sendMessage({
+      action: 'uploadImage',
+      dataURL,
+      apiKey: apiKeyInput.value.trim()
+    }, response => {
+      if (response.success) {
+        resolve(response.url);
+      } else {
+        reject(new Error(response.error));
+      }
+    });
   });
-
-  if (!response.ok) {
-    const error = await response.json().catch(() => ({}));
-    throw new Error(error.message || `Upload failed: ${response.status}`);
-  }
-
-  const data = await response.json();
-  return data.url;
 }
 
 async function handleTryOn() {
@@ -225,36 +203,26 @@ async function handleTryOn() {
       uploadImage(garmentPreviewImage.src)
     ]);
 
-    // Make the API request
-    const response = await fetch(`${RUNWAY_API_URL}/text_to_image`, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${apiKeyInput.value.trim()}`,
-        'Content-Type': 'application/json',
-        'X-Runway-Version': '2024-11-06'
-      },
-      body: JSON.stringify({
-        promptText: "IMG_1 wearing IMG_2",
-        model: "gen4_image",
-        ratio: "1080:1440",
-        referenceImages: [
-          { uri: profileUrl },
-          { uri: garmentUrl }
-        ]
-      })
+    // Start generation
+    const generationResponse = await new Promise((resolve, reject) => {
+      chrome.runtime.sendMessage({
+        action: 'generateImage',
+        profileUrl,
+        garmentUrl,
+        apiKey: apiKeyInput.value.trim()
+      }, response => {
+        if (response.success) {
+          resolve(response);
+        } else {
+          reject(new Error(response.error));
+        }
+      });
     });
 
-    // Handle non-200 responses
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}));
-      throw new Error(errorData.message || `HTTP error! status: ${response.status}`);
-    }
-
-    const data = await response.json();
-    console.log('Generation started:', data);
+    console.log('Generation started:', generationResponse);
 
     // Poll for results
-    const result = await pollForCompletion(data.id);
+    const result = await pollForCompletion(generationResponse.taskId);
     console.log('Generation completed:', result);
 
     // Display the result
@@ -274,23 +242,23 @@ async function pollForCompletion(taskId) {
   const interval = 2000;
 
   for (let i = 0; i < maxAttempts; i++) {
-    const response = await fetch(`${RUNWAY_API_URL}/tasks/${taskId}`, {
-      headers: {
-        'Authorization': `Bearer ${apiKeyInput.value.trim()}`,
-        'X-Runway-Version': '2024-09-13'
-      }
+    const response = await new Promise((resolve, reject) => {
+      chrome.runtime.sendMessage({
+        action: 'pollTask',
+        taskId,
+        apiKey: apiKeyInput.value.trim()
+      }, response => {
+        if (response.success) {
+          resolve(response.result);
+        } else {
+          reject(new Error(response.error));
+        }
+      });
     });
 
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}));
-      throw new Error(errorData.message || `HTTP error! status: ${response.status}`);
-    }
-
-    const result = await response.json();
-
-    if (result.status === 'SUCCEEDED') {
-      return result;
-    } else if (result.status === 'FAILED') {
+    if (response.status === 'SUCCEEDED') {
+      return response;
+    } else if (response.status === 'FAILED') {
       throw new Error('Generation failed');
     }
 

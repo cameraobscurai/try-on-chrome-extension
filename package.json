@@ -12,7 +12,8 @@
     "@tensorflow/tfjs": "^4.17.0",
     "@tensorflow/tfjs-converter": "^4.17.0",
     "@tensorflow/tfjs-core": "^4.17.0",
-    "@mediapipe/face_detection": "^0.4.1633559619"
+    "@mediapipe/face_detection": "^0.4.1633559619",
+    "webextension-polyfill": "^0.10.0"
   },
   "devDependencies": {
     "vite": "^5.0.12"
