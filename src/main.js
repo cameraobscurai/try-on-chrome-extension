@@ -1,5 +1,5 @@
 // Constants
-const RUNWAY_API_URL = 'https://api.dev.runwayml.com/v1/text_to_image';
+const RUNWAY_API_URL = 'https://api.dev.runwayml.com/v1/tasks';
 const API_KEY = 'key_3f196a35aef9f226e8deef988f936e7109b7ae729b98f02fbec8c9df582551f29a1eb4b41d16cd23940e8f5ea03bb06ae9aecc8145b718c91c2a1127f58d7c6a';
 
 // Elements
@@ -171,10 +171,21 @@ function updateTryOnButton() {
 
 async function handleTryOn() {
   try {
+    // Validate inputs
+    if (!previewImage.src || !garmentPreviewImage.src) {
+      throw new Error('Please upload both a profile picture and a garment image');
+    }
+
+    if (!apiKeyInput.value.trim()) {
+      throw new Error('Please enter your Runway API key');
+    }
+
+    // Update button state
     tryOnBtn.disabled = true;
     tryOnBtn.innerHTML = '<div class="spinner"></div>';
 
-    const response = await fetch(RUNWAY_API_URL, {
+    // Make the API request
+    const response = await fetch(`${RUNWAY_API_URL}/text_to_image`, {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${apiKeyInput.value.trim()}`,
@@ -182,7 +193,7 @@ async function handleTryOn() {
         'X-Runway-Version': '2024-11-06'
       },
       body: JSON.stringify({
-        promptText: "A person wearing fashionable clothing",
+        promptText: "IMG_1 wearing IMG_2",
         model: "gen4_image",
         ratio: "1080:1440",
         referenceImages: [
@@ -196,8 +207,10 @@ async function handleTryOn() {
       })
     });
 
+    // Handle non-200 responses
     if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`);
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.message || `HTTP error! status: ${response.status}`);
     }
 
     const data = await response.json();
@@ -224,7 +237,7 @@ async function pollForCompletion(taskId) {
   const interval = 2000;
 
   for (let i = 0; i < maxAttempts; i++) {
-    const response = await fetch(`https://api.dev.runwayml.com/v1/tasks/${taskId}`, {
+    const response = await fetch(`${RUNWAY_API_URL}/${taskId}`, {
       headers: {
         'Authorization': `Bearer ${apiKeyInput.value.trim()}`,
         'X-Runway-Version': '2024-09-13'
@@ -232,7 +245,8 @@ async function pollForCompletion(taskId) {
     });
 
     if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`);
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.message || `HTTP error! status: ${response.status}`);
     }
 
     const result = await response.json();
