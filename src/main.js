@@ -1,5 +1,5 @@
 // Constants
-const RUNWAY_API_URL = 'https://api.dev.runwayml.com/v1/tasks';
+const RUNWAY_API_URL = 'https://api.dev.runwayml.com/v1';
 const API_KEY = 'key_3f196a35aef9f226e8deef988f936e7109b7ae729b98f02fbec8c9df582551f29a1eb4b41d16cd23940e8f5ea03bb06ae9aecc8145b718c91c2a1127f58d7c6a';
 
 // Elements
@@ -169,6 +169,41 @@ function updateTryOnButton() {
   tryOnBtn.disabled = !(hasImage && hasGarment && hasApiKey);
 }
 
+// Helper function to convert data URL to Blob
+function dataURLtoBlob(dataURL) {
+  const arr = dataURL.split(',');
+  const mime = arr[0].match(/:(.*?);/)[1];
+  const bstr = atob(arr[1]);
+  let n = bstr.length;
+  const u8arr = new Uint8Array(n);
+  while (n--) {
+    u8arr[n] = bstr.charCodeAt(n);
+  }
+  return new Blob([u8arr], { type: mime });
+}
+
+// Helper function to upload image and get URL
+async function uploadImage(dataURL) {
+  const formData = new FormData();
+  formData.append('file', dataURLtoBlob(dataURL));
+
+  const response = await fetch(`${RUNWAY_API_URL}/upload`, {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${apiKeyInput.value.trim()}`
+    },
+    body: formData
+  });
+
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({}));
+    throw new Error(error.message || `Upload failed: ${response.status}`);
+  }
+
+  const data = await response.json();
+  return data.url;
+}
+
 async function handleTryOn() {
   try {
     // Validate inputs
@@ -184,6 +219,12 @@ async function handleTryOn() {
     tryOnBtn.disabled = true;
     tryOnBtn.innerHTML = '<div class="spinner"></div>';
 
+    // Upload both images first
+    const [profileUrl, garmentUrl] = await Promise.all([
+      uploadImage(previewImage.src),
+      uploadImage(garmentPreviewImage.src)
+    ]);
+
     // Make the API request
     const response = await fetch(`${RUNWAY_API_URL}/text_to_image`, {
       method: 'POST',
@@ -197,12 +238,8 @@ async function handleTryOn() {
         model: "gen4_image",
         ratio: "1080:1440",
         referenceImages: [
-          {
-            uri: previewImage.src
-          },
-          {
-            uri: garmentPreviewImage.src
-          }
+          { uri: profileUrl },
+          { uri: garmentUrl }
         ]
       })
     });
@@ -237,7 +274,7 @@ async function pollForCompletion(taskId) {
   const interval = 2000;
 
   for (let i = 0; i < maxAttempts; i++) {
-    const response = await fetch(`${RUNWAY_API_URL}/${taskId}`, {
+    const response = await fetch(`${RUNWAY_API_URL}/tasks/${taskId}`, {
       headers: {
         'Authorization': `Bearer ${apiKeyInput.value.trim()}`,
         'X-Runway-Version': '2024-09-13'
