@@ -1,4 +1,5 @@
 const RUNWAY_API_URL = 'https://api.dev.runwayml.com/v1';
+const API_KEY = process.env.RUNWAY_API_KEY;
 
 // Helper function to convert data URL to Blob
 function dataURLtoBlob(dataURL) {
@@ -16,7 +17,7 @@ function dataURLtoBlob(dataURL) {
 // Listen for messages from content script
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   if (request.action === 'uploadImage') {
-    const { dataURL, apiKey } = request;
+    const { dataURL } = request;
     
     // Create form data
     const formData = new FormData();
@@ -26,7 +27,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     fetch(`${RUNWAY_API_URL}/upload`, {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${apiKey}`
+        'Authorization': `Bearer ${API_KEY}`
       },
       body: formData
     })
@@ -44,12 +45,12 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   }
 
   if (request.action === 'generateImage') {
-    const { profileUrl, garmentUrl, apiKey } = request;
+    const { profileUrl, garmentUrl } = request;
 
     fetch(`${RUNWAY_API_URL}/text_to_image`, {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${apiKey}`,
+        'Authorization': `Bearer ${API_KEY}`,
         'Content-Type': 'application/json',
         'X-Runway-Version': '2024-11-06'
       },
@@ -76,11 +77,11 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   }
 
   if (request.action === 'pollTask') {
-    const { taskId, apiKey } = request;
+    const { taskId } = request;
 
     fetch(`${RUNWAY_API_URL}/tasks/${taskId}`, {
       headers: {
-        'Authorization': `Bearer ${apiKey}`,
+        'Authorization': `Bearer ${API_KEY}`,
         'X-Runway-Version': '2024-09-13'
       }
     })

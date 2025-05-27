@@ -1,6 +1,3 @@
-// Constants
-const RUNWAY_API_URL = 'https://api.dev.runwayml.com/v1';
-
 // Elements
 const dropArea = document.getElementById('drop-area');
 const fileInput = document.getElementById('file-input');
@@ -12,8 +9,6 @@ const garmentFileInput = document.getElementById('garment-file-input');
 const garmentPreviewContainer = document.getElementById('garment-preview-container');
 const garmentPreviewImage = document.getElementById('garment-preview-image');
 const removeGarmentBtn = document.getElementById('remove-garment-btn');
-const wardrobeContainer = document.getElementById('wardrobe-container');
-const apiKeyInput = document.getElementById('api-key-input');
 const tryOnBtn = document.getElementById('try-on-btn');
 
 // Prevent default drag behaviors for both drop areas
@@ -54,9 +49,6 @@ garmentFileInput.addEventListener('change', handleGarmentFiles);
 // Remove image buttons click
 removeImageBtn.addEventListener('click', removeImage);
 removeGarmentBtn.addEventListener('click', removeGarmentImage);
-
-// API key input change
-apiKeyInput.addEventListener('input', updateTryOnButton);
 
 // Try on button click
 tryOnBtn.addEventListener('click', handleTryOn);
@@ -161,8 +153,7 @@ function removeGarmentImage() {
 function updateTryOnButton() {
   const hasImage = previewImage.src !== '';
   const hasGarment = garmentPreviewImage.src !== '';
-  const hasApiKey = apiKeyInput.value.trim() !== '';
-  tryOnBtn.disabled = !(hasImage && hasGarment && hasApiKey);
+  tryOnBtn.disabled = !(hasImage && hasGarment);
 }
 
 // Helper function to upload image and get URL
@@ -170,8 +161,7 @@ async function uploadImage(dataURL) {
   return new Promise((resolve, reject) => {
     chrome.runtime.sendMessage({
       action: 'uploadImage',
-      dataURL,
-      apiKey: apiKeyInput.value.trim()
+      dataURL
     }, response => {
       if (response.success) {
         resolve(response.url);
@@ -189,10 +179,6 @@ async function handleTryOn() {
       throw new Error('Please upload both a profile picture and a garment image');
     }
 
-    if (!apiKeyInput.value.trim()) {
-      throw new Error('Please enter your Runway API key');
-    }
-
     // Update button state
     tryOnBtn.disabled = true;
     tryOnBtn.innerHTML = '<div class="spinner"></div>';
@@ -208,8 +194,7 @@ async function handleTryOn() {
       chrome.runtime.sendMessage({
         action: 'generateImage',
         profileUrl,
-        garmentUrl,
-        apiKey: apiKeyInput.value.trim()
+        garmentUrl
       }, response => {
         if (response.success) {
           resolve(response);
@@ -245,8 +230,7 @@ async function pollForCompletion(taskId) {
     const response = await new Promise((resolve, reject) => {
       chrome.runtime.sendMessage({
         action: 'pollTask',
-        taskId,
-        apiKey: apiKeyInput.value.trim()
+        taskId
       }, response => {
         if (response.success) {
           resolve(response.result);
